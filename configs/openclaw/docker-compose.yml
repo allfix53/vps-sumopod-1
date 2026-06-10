@@ -1,0 +1,23 @@
+services:
+  openclaw-gateway:
+    build: .
+    container_name: openclaw-gateway
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:20400:18789"
+    volumes:
+      - /opt/openclaw/data:/app/data
+    env_file:
+      - .env
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - default
+      - 9router_default
+
+networks:
+  9router_default:
+    external: true

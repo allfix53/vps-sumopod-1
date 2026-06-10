@@ -1,0 +1,23 @@
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:20300:5678"
+    volumes:
+      - /opt/n8n/data:/home/node/.n8n
+    env_file:
+      - .env
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - default
+      - 9router_default
+
+networks:
+  9router_default:
+    external: true

@@ -1,0 +1,11 @@
+# Secrets - never commit
+.env
+*.secret
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated
+__pycache__/
+*.pyc

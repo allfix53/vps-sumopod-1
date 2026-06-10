@@ -1,0 +1,195 @@
+{
+  "name": "Havedev Auto Article Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 4
+            }
+          ]
+        }
+      },
+      "id": "e2e8e9f5-1111-4235-9f5a-c5c6f3d9b010",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "file",
+        "operation": "list",
+        "owner": "havedev-com",
+        "repository": "havedev-web-page-astro",
+        "filePath": "src/pages/blog/category"
+      },
+      "id": "c1f7a8b2-2222-4a5c-89a1-b8d9c0e1f234",
+      "name": "Get Categories from GitHub",
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1,
+      "position": [
+        440,
+        240
+      ],
+      "credentials": {
+        "githubOAuth2Api": {
+          "id": "YOUR_GITHUB_CREDENTIAL_ID",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst folders = items.filter(item => item.json.type === 'dir').map(item => item.json.name);\n\n// Fallback jika tidak ada folder\nconst categories = folders.length > 0 ? folders : ['web-development', 'technology', 'cloud'];\nconst category = categories[Math.floor(Math.random() * categories.length)];\n\nconst prompt = `Tuliskan sebuah artikel pendek, profesional, dan up-to-date (sekitar 300-400 kata) dalam bahasa Indonesia tentang topik yang berkaitan dengan kategori \"${category}\". Artikel ini untuk blog perusahaan teknologi Havedev. Jangan sertakan judul di dalam isi, cukup paragraf isi artikelnya saja.`;\n\nreturn [\n  {\n    json: {\n      category: category,\n      prompt: prompt\n    }\n  }\n];"
+      },
+      "id": "a3b4c5d6-3333-4e7f-9c0d-e1f2a3b4c5d6",
+      "name": "Pick Random Category & Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.OPENAI_API_BASE_URL + '/chat/completions' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"default\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"Anda adalah seorang penulis konten teknis (technical writer) profesional untuk perusahaan IT bernama Havedev.\"},\n    {\"role\": \"user\", \"content\": \"{{ $json.prompt }}\"}\n  ]\n}",
+        "options": {}
+      },
+      "id": "d7e8f9a0-4444-4b8c-a1d2-e3f4a5b6c7d8",
+      "name": "Generate Content (9router)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        880,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.item.json;\nconst content = response.choices[0].message.content;\nconst category = $('Pick Random Category & Prompt').item.json.category;\n\nconst date = new Date().toISOString().split('T')[0];\nconst slug = \"update-\" + Math.floor(Date.now() / 1000);\n\n// Generate a catchy title based on category and date\nconst title = \"Update Terbaru Seputar \" + category.replace(/-/g, ' ').toUpperCase() + \" (\" + date + \")\";\n\nconst markdown = `---\ntitle: \"${title}\"\ndate: \"${date}\"\nauthor: \"Havedev AI\"\ncategory: \"${category}\"\n---\n\n${content}\n`;\n\nreturn [\n  {\n    json: {\n      markdown: markdown,\n      path: `src/pages/blog/category/${category}/${slug}.md`,\n      commitMessage: `docs: auto generate article for ${category}`\n    }\n  }\n];"
+      },
+      "id": "e8f9a0b1-5555-4c9d-b2e3-f4a5b6c7d8e9",
+      "name": "Format Markdown",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "file",
+        "operation": "create",
+        "owner": "havedev-com",
+        "repository": "havedev-web-page-astro",
+        "filePath": "={{ $json.path }}",
+        "fileContent": "={{ $json.markdown }}",
+        "commitMessage": "={{ $json.commitMessage }}"
+      },
+      "id": "f9a0b1c2-6666-4dae-c3f4-a5b6c7d8e9f0",
+      "name": "Push to GitHub",
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        240
+      ],
+      "credentials": {
+        "githubOAuth2Api": {
+          "id": "YOUR_GITHUB_CREDENTIAL_ID",
+          "name": "GitHub account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Categories from GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Categories from GitHub": {
+      "main": [
+        [
+          {
+            "node": "Pick Random Category & Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Random Category & Prompt": {
+      "main": [
+        [
+          {
+            "node": "Generate Content (9router)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Content (9router)": {
+      "main": [
+        [
+          {
+            "node": "Format Markdown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Markdown": {
+      "main": [
+        [
+          {
+            "node": "Push to GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1a2b3c4d-5e6f-7g8h-9i0j-1k2l3m4n5o6p"
+}

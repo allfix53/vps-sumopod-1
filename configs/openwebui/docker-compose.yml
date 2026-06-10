@@ -1,0 +1,19 @@
+services:
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: openwebui
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:20200:8080"
+    volumes:
+      - /opt/openwebui/data:/app/backend/data
+      - /opt/openwebui/workspace:/workspace
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - .env
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
