@@ -21,7 +21,7 @@ Dokumentasi dan konfigurasi untuk VPS **vps-sumopod-1**.
 |---|---|---|---|
 | 9Router | `https://9router.havedev.com` | 20128 | ✅ Running |
 | Open WebUI | `https://chat-ai.havedev.com` | 20200 | ✅ Running |
-| OpenClaw Gateway | `https://openclaw.havedev.com` | 20400 | ✅ Running |
+| OpenClaw Gateway | `https://openclaw.havedev.com` | 20400 | ✅ Running (`OpenClaw 2026.6.5`) |
 | n8n | `https://n8n.havedev.com` | 20300 | ✅ Running |
 
 ### Future Services (planned)
@@ -99,6 +99,9 @@ docker logs openclaw-gateway --tail 50
 
 # Restart OpenClaw
 cd /opt/openclaw && sudo docker compose restart
+
+# Update OpenClaw package version
+cd /opt/openclaw && sudo docker compose build --no-cache openclaw-gateway && sudo docker compose up -d openclaw-gateway
 
 # Cek model catalog OpenClaw -> 9Router
 docker exec openclaw-gateway openclaw models status
@@ -196,4 +199,4 @@ vps-sumopod-1/
 ## Setup Date
 
 - Initial setup: 2026-06-03
-- Last VM sync audit: 2026-06-10
+- Last VM sync audit: 2026-06-11

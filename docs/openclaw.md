@@ -15,6 +15,7 @@ OpenClaw Gateway adalah core websocket server yang menghubungkan aplikasi *messa
 | Internal port | `127.0.0.1:20400` |
 | Config dir (host) | `/opt/openclaw/` |
 | Persistent Data | `/opt/openclaw/data/` (mapped to `/app/data` in container) |
+| Runtime version | `OpenClaw 2026.6.5 (5181e4f)`; updated 2026-06-11 |
 | Log rotation | 10MB × 3 files |
 | Docker Network | `openclaw_default` & `9router_default` |
 
@@ -61,6 +62,7 @@ OpenClaw is configured with an internal model provider id named `router9` becaus
 - Provider auth: `OPENAI_API_KEY` from the OpenClaw container environment
 - Default model: `router9/cx/gpt-5.5`
 - Model catalog source: live 9Router `/v1/models`, exposed in OpenClaw as `router9/<9router-model-id>`
+- Current synced catalog: 32 models, checked 2026-06-11 after updating OpenClaw to `2026.6.5`
 
 ### 5. Image Generation via 9Router
 OpenClaw image generation is configured as an OpenAI-compatible image provider using OpenClaw's `litellm` provider wrapper, but the base URL points to 9Router on the internal Docker network.
@@ -137,10 +139,20 @@ sudo docker compose up -d
 ### Update to Latest Version
 ```bash
 cd /opt/openclaw
-sudo docker compose pull
-sudo docker compose up -d
-sudo docker image prune -f   # Cleanup old image
+TS=$(date -u +%Y%m%dT%H%M%SZ)
+BACKUP_DIR=/opt/backups/openclaw-version-update-$TS
+sudo mkdir -p "$BACKUP_DIR"
+sudo cp docker-compose.yml Dockerfile .env .env.example "$BACKUP_DIR/"
+sudo tar -C /opt/openclaw -czf "$BACKUP_DIR/data.before.tgz" data
+
+sudo docker compose build --no-cache openclaw-gateway
+sudo docker compose up -d openclaw-gateway
+docker exec openclaw-gateway openclaw --version
 ```
+
+This service uses a locally built image from `/opt/openclaw/Dockerfile`; `docker compose pull` does not update the `openclaw` npm package. Rebuild with `--no-cache` so `npm install -g openclaw@latest` is executed again.
+
+After a version update, re-check the 9Router model catalog and sync `models.providers.router9.models` if the live `/v1/models` list has changed. Restart only `openclaw-gateway`; never restart 9Router for an OpenClaw-side catalog refresh.
 
 ### View Logs
 ```bash
