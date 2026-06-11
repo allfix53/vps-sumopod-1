@@ -104,3 +104,6 @@ cd /opt/n8n && sudo docker compose down
 - n8n joins the external Docker network `9router_default` so workflows can call `http://9router:20128/v1` directly.
 - Do not use `host.docker.internal` for 9Router from n8n on this VPS; it is not resolvable in the current n8n container.
 - Keep article-generation workflows inactive until `OPENAI_API_KEY` is set and a `/v1/models` test returns HTTP 200 from inside the n8n container.
+- For image generation without adding a paid OpenAI Platform API key, use 9Router model `codex/gpt-5.5-image`. This uses the existing active Codex OAuth credential in 9Router and returned `b64_json` successfully on 2026-06-10.
+- Do not use `gpt-image-1-mini`, `gpt-image-1`, or `gpt-image-2` unless an upstream `openai` provider credential is added in 9Router. Those models currently return `No credentials for provider: openai` on this VPS.
+- Keep the workflow fallback to Pollinations enabled so the article pipeline can still create an image when the Codex route is unavailable.

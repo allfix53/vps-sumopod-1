@@ -178,3 +178,98 @@ curl -s https://9router.havedev.com/v1/models \
 ### Cursor / Cline / Others
 
 Same endpoint and API key. Check 9Router dashboard for available models.
+
+### Image Generation
+
+9Router exposes image generation through the OpenAI-compatible endpoint:
+
+```bash
+http://9router:20128/v1/images/generations
+```
+
+#### Recommended Route Without OpenAI API Billing
+
+Use the existing active `codex` OAuth credential in 9Router:
+
+```text
+codex/gpt-5.5-image
+```
+
+Live status checked on 2026-06-10: this route successfully generated one `b64_json` image from the VPS through 9Router. It does not require adding an OpenAI Platform API key, but it still depends on the active Codex account/entitlement already connected in 9Router.
+
+Test from the VPS host:
+
+```bash
+KEY=$(sudo awk -F= '/^OPENAI_API_KEY=/{print $2}' /opt/openclaw/.env)
+curl -sS http://127.0.0.1:20128/v1/images/generations \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"codex/gpt-5.5-image","prompt":"simple blue square icon","n":1,"size":"1024x1024","response_format":"b64_json"}' \
+  | jq -r '.data[0].b64_json' \
+  | base64 --decode > /tmp/9router-codex-image-test.png
+```
+
+For n8n article images, prefer this route first. Keep a no-key fallback such as Pollinations in the workflow for cases where the Codex route is rate-limited or temporarily unavailable.
+
+#### OpenAI GPT Image Route
+
+Use this model when the `openai` upstream credential is active in 9Router:
+
+```text
+gpt-image-2
+```
+
+Required dashboard setup:
+
+1. Open `https://9router.havedev.com/dashboard`.
+2. Add an upstream provider connection for `openai` with a valid OpenAI API key.
+3. Keep the existing Endpoint API key for clients such as OpenClaw and n8n.
+
+Live status checked on 2026-06-10: 9Router routes `gpt-image-2` to provider `openai`, but the VPS currently returns `No credentials for provider: openai` until that upstream provider connection is added.
+
+Test OpenAI image generation from the VPS host:
+
+```bash
+KEY=$(sudo awk -F= '/^OPENAI_API_KEY=/{print $2}' /opt/openclaw/.env)
+curl -sS http://127.0.0.1:20128/v1/images/generations \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-image-2","prompt":"simple blue square icon","n":1,"size":"1024x1024"}' \
+  | jq -r '.data[0].b64_json' \
+  | base64 --decode > /tmp/9router-openai-image-test.png
+```
+
+OpenAI GPT Image responses use `data[0].b64_json`; do not expect a hosted image URL from this endpoint.
+
+#### OpenClaw Codex Route
+
+OpenClaw currently uses the same 9Router route for image generation through the internal Docker endpoint.
+
+Known working model route:
+
+```text
+codex/gpt-5.5-image
+```
+
+Configured OpenClaw fallback route:
+
+```text
+google/gemini-3.1-flash-image-preview
+```
+
+This fallback is routed through OpenClaw's `litellm` provider to 9Router as `litellm/google/gemini-3.1-flash-image-preview`. It will only work after a `google` upstream credential is added and activated in 9Router.
+
+Test from the VPS host:
+
+```bash
+KEY=$(sudo awk -F= '/^OPENAI_API_KEY=/{print $2}' /opt/openclaw/.env)
+curl -sS http://127.0.0.1:20128/v1/images/generations \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"codex/gpt-5.5-image","prompt":"simple blue square icon","n":1,"size":"1024x1024","response_format":"b64_json"}'
+```
+
+Notes:
+
+- `256x256` is rejected by the Codex image route; use `1024x1024` or larger supported sizes.
+- `gpt-image-2`, `gpt-image-1`, `dall-e-3`, and Google image routes require their own upstream credentials in 9Router. Without those credentials, 9Router returns `No credentials for provider: openai` or `No credentials for provider: google`.

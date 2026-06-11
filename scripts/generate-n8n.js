@@ -160,7 +160,7 @@ const nodes = [
       "headerParameters": { "parameters": [{ "name": "Content-Type", "value": "application/json" }, { "name": "Authorization", "value": "={{ 'Bearer ' + $env.OPENAI_API_KEY }}" }] },
       "sendBody": true,
       "specifyBody": "json",
-      "jsonBody": "={\n  \"model\": \"dall-e-3\",\n  \"prompt\": \"{{ $('Extract Frontmatter').first().json.newsTitle }}, high quality illustration, technology, professional, digital art\",\n  \"n\": 1,\n  \"size\": \"1024x1024\"\n}",
+      "jsonBody": "={\n  \"model\": \"codex/gpt-5.5-image\",\n  \"prompt\": \"{{ $('Extract Frontmatter').first().json.newsTitle }}, high quality illustration, technology, professional, digital art\",\n  \"n\": 1,\n  \"size\": \"1024x1024\",\n  \"response_format\": \"b64_json\"\n}",
       "options": {}
     },
     "onError": "continueErrorOutput"
@@ -172,19 +172,53 @@ const nodes = [
     "typeVersion": 2,
     "position": [2400, 300],
     "parameters": {
-      "jsCode": "let imageUrl = '';\nif ($input.first().json && $input.first().json.data && $input.first().json.data[0]) {\n  imageUrl = $input.first().json.data[0].url;\n}\n\n// Fallback to pollinations.ai (free, no API key needed)\nif (!imageUrl) {\n  const title = encodeURIComponent($('Extract Frontmatter').first().json.newsTitle);\n  imageUrl = `https://image.pollinations.ai/prompt/${title}?width=1024&height=1024&nologo=true`;\n}\n\nconst articleResponse = $('Write Article (9router)').first().json;\nconst articleMarkdown = articleResponse.choices[0].message.content;\nconst prevData = $('Extract Frontmatter').first().json;\n\nreturn { json: { ...prevData, markdown: articleMarkdown, imageUrl: imageUrl } };"
-    }
-  },
-  {
-    "id": "download-image",
-    "name": "Download Image",
-    "type": "n8n-nodes-base.httpRequest",
-    "typeVersion": 4.1,
-    "position": [2600, 300],
-    "parameters": {
-      "url": "={{ $json.imageUrl }}",
-      "responseFormat": "file",
-      "options": {}
+      "jsCode": `const imageResponse = $input.first().json || {};
+const articleResponse = $('Write Article (9router)').first().json;
+const articleMarkdown = articleResponse.choices[0].message.content;
+const prevData = $('Extract Frontmatter').first().json;
+
+const imageData = imageResponse.data && imageResponse.data[0] ? imageResponse.data[0] : {};
+let imageBuffer;
+let mimeType = 'image/png';
+let fileExt = 'png';
+let imageSource = 'codex:gpt-5.5-image';
+
+if (imageData.b64_json) {
+  imageBuffer = Buffer.from(imageData.b64_json, 'base64');
+} else if (imageData.url) {
+  const download = await this.helpers.httpRequest({
+    method: 'GET',
+    url: imageData.url,
+    encoding: 'arraybuffer',
+    returnFullResponse: true,
+  });
+  const contentType = download.headers && (download.headers['content-type'] || download.headers['Content-Type']);
+  mimeType = contentType ? contentType.split(';')[0] : 'image/jpeg';
+  fileExt = mimeType.includes('png') ? 'png' : 'jpg';
+  imageBuffer = Buffer.from(download.body);
+} else {
+  const title = encodeURIComponent(prevData.newsTitle);
+  const fallbackUrl = 'https://image.pollinations.ai/prompt/' + title + '?width=1024&height=1024&nologo=true';
+  const download = await this.helpers.httpRequest({
+    method: 'GET',
+    url: fallbackUrl,
+    encoding: 'arraybuffer',
+    returnFullResponse: true,
+  });
+  const contentType = download.headers && (download.headers['content-type'] || download.headers['Content-Type']);
+  mimeType = contentType ? contentType.split(';')[0] : 'image/jpeg';
+  fileExt = mimeType.includes('png') ? 'png' : 'jpg';
+  imageSource = 'fallback:pollinations';
+  imageBuffer = Buffer.from(download.body);
+}
+
+const fileName = prevData.slug + '.' + fileExt;
+const binaryData = await this.helpers.prepareBinaryData(imageBuffer, fileName, mimeType);
+
+return [{
+  json: { ...prevData, markdown: articleMarkdown, imageSource, imageFileName: fileName },
+  binary: { data: binaryData },
+}];`
     }
   },
   {
@@ -192,7 +226,7 @@ const nodes = [
     "name": "Push Image",
     "type": "n8n-nodes-base.github",
     "typeVersion": 1,
-    "position": [2800, 300],
+    "position": [2600, 300],
     "parameters": {
       "authentication": "oAuth2",
       "resource": "file",
@@ -210,7 +244,7 @@ const nodes = [
     "name": "Push Article",
     "type": "n8n-nodes-base.github",
     "typeVersion": 1,
-    "position": [3000, 300],
+    "position": [2800, 300],
     "parameters": {
       "authentication": "oAuth2",
       "resource": "file",
@@ -237,9 +271,8 @@ const connections = {
   "Read Example File": { "main": [[{ "node": "Extract Frontmatter", "type": "main", "index": 0 }]] },
   "Extract Frontmatter": { "main": [[{ "node": "Write Article (9router)", "type": "main", "index": 0 }]] },
   "Write Article (9router)": { "main": [[{ "node": "Generate Image (9router)", "type": "main", "index": 0 }]] },
-  "Generate Image (9router)": { "main": [[{ "node": "Check Image & Fallback", "type": "main", "index": 0 }]] },
-  "Check Image & Fallback": { "main": [[{ "node": "Download Image", "type": "main", "index": 0 }]] },
-  "Download Image": { "main": [[{ "node": "Push Image", "type": "main", "index": 0 }]] },
+  "Generate Image (9router)": { "main": [[{ "node": "Check Image & Fallback", "type": "main", "index": 0 }], [{ "node": "Check Image & Fallback", "type": "main", "index": 0 }]] },
+  "Check Image & Fallback": { "main": [[{ "node": "Push Image", "type": "main", "index": 0 }]] },
   "Push Image": { "main": [[{ "node": "Push Article", "type": "main", "index": 0 }]] }
 };
 

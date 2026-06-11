@@ -58,6 +58,10 @@ Internet
          OpenClaw ──→ http://9router:20128/v1 (internal Docker network)
          Provider: router9
          Default model: router9/cx/gpt-5.5
+         Image generation: litellm/codex/gpt-5.5-image via 9Router
+         Image fallback: litellm/google/gemini-3.1-flash-image-preview via 9Router
+         n8n image route: codex/gpt-5.5-image via 9Router, with Pollinations fallback
+         OpenAI image route: gpt-image-2 via 9Router (requires openai upstream credential)
 ```
 
 ## Quick Commands
@@ -99,6 +103,14 @@ cd /opt/openclaw && sudo docker compose restart
 # Cek model catalog OpenClaw -> 9Router
 docker exec openclaw-gateway openclaw models status
 docker exec openclaw-gateway openclaw models list --json | jq -r '.models[].key | select(startswith("router9/"))'
+
+# Test image generation OpenClaw -> 9Router
+docker exec openclaw-gateway openclaw infer image generate \
+  --prompt "simple blue square icon" \
+  --size 1024x1024 \
+  --count 1 \
+  --output /tmp/openclaw-9router-image-test.png \
+  --timeout-ms 180000
 
 # Cek logs n8n
 docker logs n8n --tail 50

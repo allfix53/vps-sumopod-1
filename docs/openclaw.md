@@ -62,6 +62,53 @@ OpenClaw is configured with an internal model provider id named `router9` becaus
 - Default model: `router9/cx/gpt-5.5`
 - Model catalog source: live 9Router `/v1/models`, exposed in OpenClaw as `router9/<9router-model-id>`
 
+### 5. Image Generation via 9Router
+OpenClaw image generation is configured as an OpenAI-compatible image provider using OpenClaw's `litellm` provider wrapper, but the base URL points to 9Router on the internal Docker network.
+
+- Provider base URL: `http://9router:20128/v1`
+- Provider auth: `OPENAI_API_KEY` from the OpenClaw container environment
+- Image generation model: `litellm/codex/gpt-5.5-image`
+- Image generation fallback: `litellm/google/gemini-3.1-flash-image-preview`
+- 9Router upstream route: `codex/gpt-5.5-image`
+- OpenAI GPT Image route through 9Router: `gpt-image-2` (`litellm/gpt-image-2` from OpenClaw if it is made primary)
+- Minimum tested size: `1024x1024` (`256x256` is rejected by the Codex image route)
+
+Current config:
+
+```json
+{
+  "primary": "litellm/codex/gpt-5.5-image",
+  "fallbacks": [
+    "litellm/google/gemini-3.1-flash-image-preview"
+  ],
+  "timeoutMs": 180000
+}
+```
+
+The Gemini fallback still requires an active `google` upstream credential in 9Router. Without it, 9Router returns `No credentials for provider: google`; the Codex primary route remains the working default.
+
+The OpenAI GPT Image route requires an active `openai` upstream credential in 9Router. Live status checked on 2026-06-10: `gpt-image-2` is routed to provider `openai`, but the VPS currently returns `No credentials for provider: openai` until that upstream connection is added.
+
+Verify image generation:
+```bash
+sudo docker exec openclaw-gateway openclaw config get agents.defaults.imageGenerationModel
+sudo docker exec openclaw-gateway openclaw infer image providers | grep '"id":"litellm"'
+sudo docker exec openclaw-gateway openclaw infer image generate \
+  --prompt "simple blue square icon" \
+  --size 1024x1024 \
+  --count 1 \
+  --output /tmp/openclaw-9router-image-test.png \
+  --timeout-ms 180000
+```
+
+If this config changes, restart only OpenClaw:
+```bash
+cd /opt/openclaw
+sudo docker compose restart openclaw-gateway
+```
+
+Do not restart 9Router for this OpenClaw-side config change. 9Router should remain up and continue serving text/API traffic.
+
 Verify after any OpenClaw config or 9Router model changes:
 ```bash
 sudo docker exec openclaw-gateway openclaw config validate

@@ -9,3 +9,4 @@ Thumbs.db
 # Generated
 __pycache__/
 *.pyc
+.playwright-cli/
