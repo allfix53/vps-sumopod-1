@@ -19,7 +19,7 @@ Dokumentasi dan konfigurasi untuk VPS **vps-sumopod-1**.
 
 | Service | URL | Port | Status |
 |---|---|---|---|
-| 9Router | `https://9router.havedev.com` | 20128 | ✅ Running |
+| 9Router | `https://9router.havedev.com` | 20128 | ✅ Running (updated 2026-06-19) |
 | Open WebUI | `https://chat-ai.havedev.com` | 20200 | ✅ Running |
 | OpenClaw Gateway | `https://openclaw.havedev.com` | 20400 | ✅ Running (`OpenClaw 2026.6.5`) |
 | n8n | `https://n8n.havedev.com` | 20300 | ✅ Running |
@@ -35,9 +35,12 @@ Internet
     │
     ▼
 ┌─────────────────────────────────┐
+│  fail2ban                       │  ← auto-bans brute-force IPs via iptables
+├─────────────────────────────────┤
 │  Nginx (port 80/443)            │
 │  SSL termination (Let's Encrypt)│
 │  Reverse proxy                  │
+│  Per-IP rate limiting (login)   │
 ├─────────────────────────────────┤
 │                                 │
 │  9router.havedev.com ──────────→│──→ 127.0.0.1:20128 (9Router)
@@ -83,7 +86,17 @@ docker logs 9router --tail 50
 cd /opt/9router && sudo docker compose restart
 
 # Update 9router
-cd /opt/9router && sudo docker compose pull && sudo docker compose up -d && sudo docker image prune -f
+# Note: Codex, Open WebUI, OpenClaw, and n8n consume AI through this router.
+# Expect a short interruption while the container is recreated.
+cd /opt/9router
+sudo cp -a /opt/9router/data /opt/9router/data-backup-$(date +%Y%m%d-%H%M%S)
+sudo docker compose pull
+sudo docker compose up -d
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:20128
+KEY=$(sudo sed -n 's/^OPENAI_API_KEY=//p' /opt/openclaw/.env | tr -d '"' | tail -n 1)
+curl -fsS http://127.0.0.1:20128/v1/models -H "Authorization: Bearer $KEY" \
+  | jq -r '.data[].id' | grep -Fx 'cx/gpt-5.5'
+sudo docker image prune -f
 
 # Cek logs Open WebUI
 docker logs openwebui --tail 50
@@ -126,6 +139,20 @@ cd /opt/n8n && sudo docker compose pull && sudo docker compose up -d && sudo doc
 
 # Manual disk cleanup
 bash /opt/scripts/disk-cleanup.sh
+
+# --- fail2ban ---
+
+# Check 9Router login jail status
+sudo fail2ban-client status 9router-login
+
+# View banned IPs
+sudo fail2ban-client status 9router-login | grep 'Banned IP'
+
+# Manually ban an IP
+sudo fail2ban-client set 9router-login banip <IP>
+
+# Unban an IP
+sudo fail2ban-client set 9router-login unbanip <IP>
 ```
 
 ## Disk Management
@@ -136,6 +163,7 @@ Disk hanya 60GB. Safeguards yang sudah terpasang:
 - Docker auto-prune: weekly cron (Sunday 3am, volumes preserved)
 - Systemd journal: capped at 100MB
 - 9Router request logs: disabled
+- fail2ban logs: managed by logrotate (default)
 
 ## Directory Structure (VPS)
 
@@ -159,6 +187,18 @@ Disk hanya 60GB. Safeguards yang sudah terpasang:
 │   └── data/                # Persistent data (workflows, credentials)
 └── scripts/
     └── disk-cleanup.sh      # Manual cleanup script
+
+/etc/fail2ban/
+├── filter.d/
+│   └── 9router-login.conf   # Custom filter for 9Router login brute-force
+└── jail.d/
+    └── 9router-login.conf   # Jail: ban after 5 fails in 10min, 1h ban
+
+/etc/nginx/
+├── conf.d/
+│   └── 9router-ratelimit.conf  # Per-IP rate limit zone for login
+└── sites-enabled/
+    └── 9router.havedev.com     # IP blocklist + rate-limited login location
 ```
 
 ## Directory Structure (This Repo)
@@ -199,4 +239,5 @@ vps-sumopod-1/
 ## Setup Date
 
 - Initial setup: 2026-06-03
-- Last VM sync audit: 2026-06-11
+- Last VM sync audit: 2026-06-19
+- Last 9Router live update: 2026-06-19; image digest `decolua/9router@sha256:7f629cc595c83c8881f9da203da7ca7a4296facfca1870047c3cda077f673e2b`; `/v1/models` returned 30 models and `cx/gpt-5.5` was present.

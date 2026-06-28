@@ -21,6 +21,21 @@
 | Config dir | `/opt/9router/` |
 | Log rotation | 10MB × 3 files |
 
+## Latest Verified State
+
+Checked after live update on 2026-06-19:
+
+| Item | Value |
+|---|---|
+| Image digest | `decolua/9router@sha256:7f629cc595c83c8881f9da203da7ca7a4296facfca1870047c3cda077f673e2b` |
+| Container image ID | `sha256:7f629cc595c83c8881f9da203da7ca7a4296facfca1870047c3cda077f673e2b` |
+| Container started at | `2026-06-19T08:50:04.084124337Z` |
+| Container status | `running`, restart count `0` |
+| HTTP checks | local `307`, public `307` |
+| Model catalog | 30 models; `cx/gpt-5.5` present |
+| Data backup created before update | `/opt/9router/data-backup-20260619-164938` |
+| Image prune result | `Total reclaimed space: 169.8MB` |
+
 ## Common Operations
 
 ### Restart
@@ -32,11 +47,29 @@ sudo docker compose restart
 
 ### Update to Latest Version
 
+9Router is the active AI backend for Codex, Open WebUI, OpenClaw, and n8n on this VPS. Run the update when a short AI interruption is acceptable, and verify `/v1/models` before considering the update finished.
+
 ```bash
 cd /opt/9router
+
+# Backup SQLite/router state before replacing the container.
+sudo cp -a /opt/9router/data /opt/9router/data-backup-$(date +%Y%m%d-%H%M%S)
+
 sudo docker compose pull
 sudo docker compose up -d
-sudo docker image prune -f   # Cleanup old image
+
+# Local web check. 200/307/401 means the service is responding.
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:20128
+
+# Authenticated model check using the existing OpenClaw 9Router endpoint key.
+KEY=$(sudo sed -n 's/^OPENAI_API_KEY=//p' /opt/openclaw/.env | tr -d '"' | tail -n 1)
+curl -fsS http://127.0.0.1:20128/v1/models -H "Authorization: Bearer $KEY" \
+  | tee /tmp/9router-models.json \
+  | jq -r '.data[].id' \
+  | grep -Fx 'cx/gpt-5.5'
+
+curl -s -o /dev/null -w "%{http_code}\n" https://9router.havedev.com
+sudo docker image prune -f   # Cleanup old image after verification
 ```
 
 ### View Logs
@@ -57,6 +90,10 @@ docker logs 9router --since 1h
 ```bash
 docker ps --filter name=9router
 curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:20128
+
+KEY=$(sudo sed -n 's/^OPENAI_API_KEY=//p' /opt/openclaw/.env | tr -d '"' | tail -n 1)
+curl -fsS http://127.0.0.1:20128/v1/models -H "Authorization: Bearer $KEY" \
+  | jq '{model_count: (.data | length), has_default_model: ([.data[].id] | contains(["cx/gpt-5.5"]))}'
 ```
 
 ### Backup Data
@@ -113,6 +150,59 @@ sudo certbot renew             # Actually renew
 ```bash
 sudo certbot certificates
 ```
+
+## Security
+
+### Login Brute-Force Protection
+
+The dashboard login endpoint (`/api/auth/login`) is protected by three layers:
+
+1. **Nginx IP blocklist** — Known attacker IPs are denied at the reverse proxy level (HTTP 403).
+2. **Nginx per-IP rate limiting** — Login requests are limited to 5 per minute per IP (`limit_req_zone` with `zone=9router_login`). One attacker cannot exhaust the rate limit for other IPs.
+3. **fail2ban auto-ban** — IPs that hit 5+ failed login attempts (401/429) within 10 minutes are banned via iptables for 1 hour.
+
+Config files on the server:
+
+| File | Purpose |
+|---|---|
+| `/etc/nginx/sites-enabled/9router.havedev.com` | `deny` directives + login `location` block with `limit_req` |
+| `/etc/nginx/conf.d/9router-ratelimit.conf` | `limit_req_zone` definition (must be in `http` context) |
+| `/etc/fail2ban/filter.d/9router-login.conf` | Regex filter matching failed login attempts in nginx logs |
+| `/etc/fail2ban/jail.d/9router-login.conf` | Jail config: `maxretry=5`, `findtime=600`, `bantime=3600` |
+
+### Block an Attacker IP
+
+```bash
+# Add IP to nginx blocklist
+sudo nano /etc/nginx/sites-enabled/9router.havedev.com
+# Add: deny <IP>;
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### fail2ban Commands
+
+```bash
+# Check jail status
+sudo fail2ban-client status 9router-login
+
+# Manually ban an IP
+sudo fail2ban-client set 9router-login banip <IP>
+
+# Unban an IP (e.g. if you accidentally locked yourself out)
+sudo fail2ban-client set 9router-login unbanip <IP>
+
+# View all jails
+sudo fail2ban-client status
+
+# View fail2ban log
+sudo tail -50 /var/log/fail2ban.log
+```
+
+### Known Blocked IPs
+
+| IP | Origin | Reason | Date Blocked |
+|---|---|---|---|
+| `43.201.122.146` | AWS EC2 Seoul, Korea | Automated brute-force (668+ login attempts/day) | 2026-06-28 |
 
 ## Troubleshooting
 
