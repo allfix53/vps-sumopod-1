@@ -23,18 +23,18 @@
 
 ## Latest Verified State
 
-Checked after live update on 2026-06-19:
+Checked after live update on 2026-07-06:
 
 | Item | Value |
 |---|---|
-| Image digest | `decolua/9router@sha256:7f629cc595c83c8881f9da203da7ca7a4296facfca1870047c3cda077f673e2b` |
-| Container image ID | `sha256:7f629cc595c83c8881f9da203da7ca7a4296facfca1870047c3cda077f673e2b` |
-| Container started at | `2026-06-19T08:50:04.084124337Z` |
+| Image digest | `decolua/9router@sha256:a92b3ac3b945dfbd3d9eaca172af82e1753587501c99da5e4cbc18f1104e26e9` |
+| Container image ID | `sha256:a92b3ac3b945dfbd3d9eaca172af82e1753587501c99da5e4cbc18f1104e26e9` |
+| Container started at | `2026-07-06T10:16:xx` |
 | Container status | `running`, restart count `0` |
 | HTTP checks | local `307`, public `307` |
-| Model catalog | 30 models; `cx/gpt-5.5` present |
-| Data backup created before update | `/opt/9router/data-backup-20260619-164938` |
-| Image prune result | `Total reclaimed space: 169.8MB` |
+| Model catalog | `cx/gpt-5.5` present |
+| Data backup created before update | `/opt/9router/data-backup-20260706-1016xx` |
+| Image prune result | `Total reclaimed space: 112.8MB` |
 
 ## Common Operations
 
