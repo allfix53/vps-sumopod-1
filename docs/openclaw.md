@@ -15,7 +15,7 @@ OpenClaw Gateway adalah core websocket server yang menghubungkan aplikasi *messa
 | Internal port | `127.0.0.1:20400` |
 | Config dir (host) | `/opt/openclaw/` |
 | Persistent Data | `/opt/openclaw/data/` (mapped to `/app/data` in container) |
-| Runtime version | `OpenClaw 2026.6.5 (5181e4f)`; updated 2026-06-11 |
+| Runtime version | `OpenClaw 2026.6.11 (e085fa1)`; updated 2026-07-06 |
 | Log rotation | 10MB × 3 files |
 | Docker Network | `openclaw_default` & `9router_default` |
 

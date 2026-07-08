@@ -21,7 +21,7 @@ Dokumentasi dan konfigurasi untuk VPS **vps-sumopod-1**.
 |---|---|---|---|
 | 9Router | `https://9router.havedev.com` | 20128 | ✅ Running (updated 2026-06-30) |
 | Open WebUI | `https://chat-ai.havedev.com` | 20200 | ✅ Running |
-| OpenClaw Gateway | `https://openclaw.havedev.com` | 20400 | ✅ Running (`OpenClaw 2026.6.5`) |
+| OpenClaw Gateway | `https://openclaw.havedev.com` | 20400 | ✅ Running (`OpenClaw 2026.6.11`) |
 | n8n | `https://n8n.havedev.com` | 20300 | ✅ Running |
 
 ### Future Services (planned)
